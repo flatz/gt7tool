@@ -9,7 +9,7 @@ from .constants import INDEX_MAGIC, FORMATTER_CODE, MAX_VOLUMES, \
                        NODE_EXTRA_FLAG_USE_VOLUME_MASK, NODE_EXTRA_FLAG_USE_VOLUME_SHIFT, \
                        CACHE_NAME_LOOKUP_TABLE
 
-from typing import Optional, NewType
+from typing import Optional
 
 from zlib import compress as zlib_compress, decompress as zlib_decompress
 from pyzstd import compress as zstd_compress, decompress as zstd_decompress
@@ -217,15 +217,6 @@ NodeInfo = Struct(
 NodeTable = Struct(
 	'count' / Computed(this._params.count),
 	'nodes' / NodeInfo[this.count],
-)
-
-PackedFileZStdTiny = Struct(
-	'compressed_data' / GreedyBytes, # 0x04
-
-	'uncompressed_data' / RestreamData(
-		this.compressed_data,
-		CompressedZStd(GreedyBytes)
-	),
 )
 
 PackedFileZStdTiny = Struct(
