@@ -192,8 +192,6 @@ class IndexFile:
 
 		self.__node_info_table_fields = NodeTable.parse(self.__node_info_table_data, count = node_count)
 
-		NodeTable.compile(filename = 'test_compile.py')
-
 		debug('Node info table:')
 		debug(self.__node_info_table_fields)
 
