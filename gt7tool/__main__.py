@@ -168,8 +168,6 @@ def main():
 		index_file.traverse_nodes(dump_node)
 	elif args.action == 'unpack-all':
 		def unpack_node(index_file: IndexFile, node: object, index: int, output_dir: str) -> None:
-			if node.attrs == 'PLAIN':
-				return
 			info(f'Unpacking file: 0x{node.entry_hash:08X}')
 			_unpack_node(index_file, node, index, output_dir)
 			info(delimiter)
@@ -179,3 +177,4 @@ def main():
 
 if __name__ == '__main__':
 	main()
+---------------------------------------------------------------
