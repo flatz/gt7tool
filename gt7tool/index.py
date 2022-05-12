@@ -90,6 +90,23 @@ class IndexFile:
 		if self.__is_debug:
 			self._populate_node_info_maps()
 
+	def traverse_nodes(self, cb, *args, **kwargs) -> int:
+		self._populate_node_info_maps()
+
+		count = 0
+
+		if not callable(cb):
+			cb = None
+
+		for i, node in enumerate(self.__node_info_table_fields.nodes):
+			if cb:
+				result = cb(self, node, i, *args, **kwargs)
+				if isinstance(result, bool) and not result:
+					break
+			count += 1
+
+		return count
+
 	def get_volume_count(self) -> int:
 		return len(self.__volumes)
 
@@ -114,7 +131,8 @@ class IndexFile:
 			mph_get_hash_from_string(path, self.__index_fields.seeds[1], limit) + limit,
 			mph_get_hash_from_string(path, self.__index_fields.seeds[2], limit) + limit * 2,
 		]
-		index = indices[(self.__get_g(indices[0]) + self.__get_g(indices[1]) + self.__get_g(indices[2])) % 4]
+		index = (self.__get_g(indices[0]) + self.__get_g(indices[1]) + self.__get_g(indices[2])) % 3
+		index = indices[index]
 
 		node_index = self.__index_fields._exists_acm256[index // 256]
 		node_index += self.__index_fields._exists_acm32[index // 32]
@@ -148,41 +166,41 @@ class IndexFile:
 
 		node_info_fields = self.get_node_by_index(node_index)
 		if node_info_fields is None:
-			return None
+			return None, None
 
 		real_entry_hash = fnv1a(path)
 		if node_info_fields.entry_hash != real_entry_hash:
-			return None
+			return None, None
 
-		return node_info_fields
+		return node_info_fields, node_index
 
 	def get_node_by_entry_hash(self, entry_hash: int) -> Optional[object]:
 		self._populate_node_info_maps()
 
 		if entry_hash not in self.__node_entry_hash_map:
-			return None
+			return None, None
 
-		index, node_info_fields = self.__node_entry_hash_map[entry_hash]
+		node_index, node_info_fields = self.__node_entry_hash_map[entry_hash]
 
 		if self.__is_debug:
-			debug(f'Node[{index}]:')
+			debug(f'Node[{node_index}]:')
 			debug(node_info_fields)
 
-		return node_info_fields
+		return node_info_fields, node_index
 
 	def get_node_by_cache_key(self, cache_key: str) -> Optional[object]:
 		self._populate_node_info_maps()
 
 		if cache_key not in self.__node_cache_key_map:
-			return None
+			return None, None
 
-		index, node_info_fields = self.__node_cache_key_map[cache_key]
+		node_index, node_info_fields = self.__node_cache_key_map[cache_key]
 
 		if self.__is_debug:
-			debug(f'Node[{index}]:')
+			debug(f'Node[{node_index}]:')
 			debug(node_info_fields)
 
-		return node_info_fields
+		return node_info_fields, node_index
 
 	def _populate_node_info_maps(self) -> None:
 		if self.__node_info_table_fields is not None:

@@ -1,0 +1,5 @@
+construct
+crcmod
+hexdump
+pycryptodome
+pyzstd
