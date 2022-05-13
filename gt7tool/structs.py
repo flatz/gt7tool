@@ -121,6 +121,27 @@ SuperintendentHeader = Struct(
 	Check(this.volume_info_count < MAX_VOLUMES),
 )
 
+SuperintendentHeaderV2 = Struct(
+	'magic' / RawHex(Const(INDEX_MAGIC, Int32ul)),          # 0x00
+	'unk_0x04' / Hex(Int32ul),                              # 0x04
+	'timestamp' / Hex(Int64ul),                             # 0x08
+	'serial_number' / Hex(Int64ul),                         # 0x10
+	'unk_0x18' / Hex(Int32ul),                              # 0x18
+	'flags' / Hex(Int32ul),                                 # 0x1C
+	'formatter_code' / Hex(Const(FORMATTER_CODE, Int32ul)), # 0x20
+	'index_data_offset' / Hex(Int32ul),                     # 0x24
+	'index_data_size' / Hex(Int32ul),                       # 0x28
+	'node_table_offset' / Hex(Int32ul),                     # 0x2C
+	'node_table_size' / Hex(Int32ul),                       # 0x30
+	'volume_info_offset' / Hex(Int32ul),                    # 0x34
+	'volume_info_count' / Hex(Int32ul),                     # 0x38
+	'header_size' / Hex(Int64ul),                           # 0x3C
+	'digest' / RawHex(Bytes(0x10)),                         # 0x44
+	'volume_infos' / VolumeInfo[this.volume_info_count],    # 0x58
+
+	Check(this.volume_info_count < MAX_VOLUMES),
+)
+
 ClusterVolumeHeader = Struct(
 	'magic' / RawHex(Const(CLUSTER_MAGIC, Int64ul)), # 0x00
 	'sector_size' / Hex(Int32ul),                    # 0x08

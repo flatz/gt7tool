@@ -4,7 +4,8 @@ from .constants import INDEX_HEADER_SIZE, \
 from .crypto import chacha20_decrypt, crc32_decrypt, \
                     fnv1a
 
-from .structs import SuperintendentHeader, VolumeInfo, \
+from .structs import SuperintendentHeader, SuperintendentHeaderV2, \
+                     VolumeInfo, \
                      IndexData, \
                      NodeTable, NodeInfo, \
                      ClusterVolumeHeader
@@ -39,7 +40,8 @@ def mph_get_hash_from_string(key: str, seed: int, limit: int) -> int:
 	return uint32(h % seed % limit)
 
 class IndexFile:
-	def __init__(self, index_file_path: str, is_debug: bool = False) -> None:
+	def __init__(self, index_file_path: str, is_new_format: bool = False, is_debug: bool = False) -> None:
+		self.__is_new_format = is_new_format
 		self.__is_debug = is_debug
 
 		index_dir = split_path(index_file_path)[0]
@@ -48,7 +50,8 @@ class IndexFile:
 		entire_data = chacha20_decrypt(INDEX_CIPHER_KEY, INDEX_CIPHER_IV, entire_data)
 		header_data = crc32_decrypt(entire_data[:INDEX_HEADER_SIZE])
 
-		header_fields = SuperintendentHeader.parse(header_data)
+		header_class = SuperintendentHeader if not self.__is_new_format else SuperintendentHeaderV2
+		header_fields = header_class.parse(header_data)
 
 		if self.__is_debug:
 			debug('Superintendent header:')

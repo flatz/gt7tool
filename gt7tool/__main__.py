@@ -88,11 +88,13 @@ def main():
 	parser = CmdLineParser('Gran Turismo 7 unpacker')
 
 	subparser = parser.add_subparser('list', 'list file entries')
+	subparser.add_argument('-2', '--use-new-format', action = 'store_true', help = 'use new index format', dest = 'is_new_format')
 	subparser.add_argument('index_path', type = str, help = 'path to gt.idx file', metavar = 'index-path')
 
 	subparser = parser.add_subparser('info', 'get information about files')
 	subparser.add_argument('-e', '--use-entry-hash', action = 'store_true', help = 'use entry hashes instead of file paths')
 	subparser.add_argument('-c', '--use-cache-key', action = 'store_true', help = 'use cache key instead of file paths')
+	subparser.add_argument('-2', '--use-new-format', action = 'store_true', help = 'use new index format', dest = 'is_new_format')
 	subparser.add_argument('index_path', type = str, help = 'path to gt.idx file', metavar = 'index-path')
 	subparser.add_argument('files', type = str, nargs = '+', help = 'file path', metavar = 'path')
 
@@ -100,14 +102,17 @@ def main():
 	subparser.add_argument('-o', '--output-dir', type = str, default = work_dir, help = 'output directory', metavar = 'dir')
 	subparser.add_argument('-e', '--use-entry-hash', action = 'store_true', help = 'use entry hashes instead of file paths')
 	subparser.add_argument('-c', '--use-cache-key', action = 'store_true', help = 'use cache key instead of file paths')
+	subparser.add_argument('-2', '--use-new-format', action = 'store_true', help = 'use new index format', dest = 'is_new_format')
 	subparser.add_argument('index_path', type = str, help = 'path to gt.idx file', metavar = 'index-path')
 	subparser.add_argument('files', type = str, nargs = '+', help = 'file path', metavar = 'path')
 
 	subparser = parser.add_subparser('unpack-all', 'unpack all files from volumes')
 	subparser.add_argument('-o', '--output-dir', type = str, default = work_dir, help = 'output directory', metavar = 'dir')
+	subparser.add_argument('-2', '--use-new-format', action = 'store_true', help = 'use new index format', dest = 'is_new_format')
 	subparser.add_argument('index_path', type = str, help = 'path to gt.idx file', metavar = 'index-path')
 
 	subparser = parser.add_subparser('cache-key', 'generate cache key')
+	subparser.add_argument('-2', '--use-new-format', action = 'store_true', help = 'use new index format', dest = 'is_new_format')
 	subparser.add_argument('index_path', type = str, help = 'path to gt.idx file', metavar = 'index-path')
 	subparser.add_argument('files', type = str, nargs = '+', help = 'file path', metavar = 'path')
 
@@ -134,7 +139,7 @@ def main():
 	delimiter = '-' * 64
 
 	if args.action in ['info', 'unpack', 'cache-key']:
-		index_file = IndexFile(args.index_path, args.debug)
+		index_file = IndexFile(args.index_path, args.is_new_format, args.debug)
 
 		need_cache_key = args.action == 'cache-key'
 
@@ -164,7 +169,7 @@ def main():
 			_dump_node(index_file, node, index)
 			info(delimiter)
 
-		index_file = IndexFile(args.index_path, args.debug)
+		index_file = IndexFile(args.index_path, args.is_new_format, args.debug)
 		index_file.traverse_nodes(dump_node)
 	elif args.action == 'unpack-all':
 		def unpack_node(index_file: IndexFile, node: object, index: int, output_dir: str) -> None:
@@ -172,7 +177,7 @@ def main():
 			_unpack_node(index_file, node, index, output_dir)
 			info(delimiter)
 
-		index_file = IndexFile(args.index_path, args.debug)
+		index_file = IndexFile(args.index_path, args.is_new_format, args.debug)
 		index_file.traverse_nodes(unpack_node, args.output_dir)
 
 if __name__ == '__main__':
