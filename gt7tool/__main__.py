@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .constants import VOLUME_CIPHER_KEY
+from .constants import VOLUME_CIPHER_KEY, \
+                       FORMAT_PLAIN
 
 from .index import IndexFile
 
@@ -34,8 +35,10 @@ def _unpack_node(index_file: IndexFile, node: object, index: int, output_dir: st
 	with open(volume_file_path, 'rb') as f:
 		f.seek(node.sector_index * volume_info.sector_size)
 		data = f.read(node.compressed_size)
-		volume_cipher_iv = get_stream_cryptor_iv(node.nonce)
-		data = chacha20_decrypt(VOLUME_CIPHER_KEY, volume_cipher_iv, data)
+
+		if node.format != FORMAT_PLAIN:
+			volume_cipher_iv = get_stream_cryptor_iv(node.nonce)
+			data = chacha20_decrypt(VOLUME_CIPHER_KEY, volume_cipher_iv, data)
 
 	if node.is_compressed:
 		packed_file_fields = PackedFile.parse(data)
