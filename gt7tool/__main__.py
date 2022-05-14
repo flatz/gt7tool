@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .constants import VOLUME_CIPHER_KEY, \
-                       FORMAT_PLAIN
+from .constants import VOLUME_CIPHER_KEY
 
 from .index import IndexFile
 
@@ -36,22 +35,19 @@ def _unpack_node(index_file: IndexFile, node: object, index: int, output_dir: st
 		f.seek(node.sector_index * volume_info.sector_size)
 		data = f.read(node.compressed_size)
 
-		if node.format != FORMAT_PLAIN:
+		if node.is_encrypted:
 			volume_cipher_iv = get_stream_cryptor_iv(node.nonce)
 			data = chacha20_decrypt(VOLUME_CIPHER_KEY, volume_cipher_iv, data)
 
 	if node.is_compressed:
-		packed_file_fields = PackedFile.parse(data)
-		fields = packed_file_fields.inner
-		while True:
-			if hasattr(fields, 'sub'):
-				fields = fields.sub
-				continue
-			if hasattr(fields, 'inner'):
-				fields = fields.inner
-				continue
-			break
-		data = fields.uncompressed_data
+		packed_file_fields = PackedFile.parse(data, is_fragmented = node.is_fragmented)
+
+		if node.is_fragmented:
+			data = bytearray()
+			for chunk in packed_file_fields.inner.chunks:
+				data += chunk.uncompressed_data
+		else:
+			data = packed_file_fields.inner.entire.uncompressed_data
 
 	out_file_path = join_path(output_dir, f'0x{node.entry_hash:08X}.bin')
 	out_file_dir = split_path(out_file_path)[0]
@@ -153,9 +149,20 @@ def main():
 			elif not need_cache_key and args.use_cache_key:
 				node, node_index = index_file.get_node_by_cache_key(in_file_path)
 			else:
-				node, node_index = index_file.get_node_by_path(in_file_path)
-				if node is not None:
-					info(f'Node 0x{node.entry_hash:08X} found for file: {in_file_path}')
+				possible_paths = set()
+				possible_paths.add(in_file_path)
+				possible_paths.add(in_file_path.lstrip('/'))
+				possible_paths.add(in_file_path.lower())
+				possible_paths.add(in_file_path.lower().lstrip('/'))
+				possible_paths.add('/' + in_file_path.lstrip('/'))
+				possible_paths.add('/' + in_file_path.lower().lstrip('/'))
+
+				for cur_file_path in possible_paths:
+					debug(f'Testing file path: {cur_file_path}')
+					node, node_index = index_file.get_node_by_path(cur_file_path)
+					if node is not None:
+						info(f'Node 0x{node.entry_hash:08X} found for file: {cur_file_path}')
+						break
 
 			if node is None:
 				warning(f'Entry not found: {in_file_path}')

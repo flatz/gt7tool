@@ -1,6 +1,6 @@
 from .constants import INDEX_MAGIC, FORMATTER_CODE, MAX_VOLUMES, \
-                       CLUSTER_MAGIC, PACKED_FILE_ZSTD_TINY_MAGIC, PACKED_FILE_ZSTD_REGULAR_MAGIC, PACKED_FILE_ZSTD_SUB_MAGIC, PACKED_FILE_ZLIB_MAGIC, \
-                       DATA_ALIGNMENT, \
+                       CLUSTER_MAGIC, PACKED_FILE_ZSTD_TINY_MAGIC, PACKED_FILE_ZSTD_REGULAR_MAGIC, PACKED_FILE_ZSTD_CHUNK_MAGIC, PACKED_FILE_ZLIB_MAGIC, \
+                       DATA_ALIGNMENT, CHUNK_ALIGNMENT, \
                        FORMAT_PLAIN, FORMAT_PZ1, FORMAT_PZ2, FORMAT_PFS, \
                        KIND_LUMP, KIND_FRAG, \
                        ALGO_ZLIB, ALGO_ZSTD, ALGO_KRAKEN, \
@@ -14,12 +14,9 @@ from typing import Optional
 from zlib import compress as zlib_compress, decompress as zlib_decompress
 from pyzstd import compress as zstd_compress, decompress as zstd_decompress
 
-from construct import Struct, LazyStruct, Const, Padding, Tell, Hex, Computed, Rebuild, Pointer, RawCopy, RestreamData, Lazy, LazyBound, Array, \
-                      Byte, Bytes, GreedyBytes, BytesInteger, PaddedString, \
-                      Int8ub, Int8sb, Int16ul, Int32ul, Int32sl, Int64ub, Int64ul, BitsInteger, \
-                      Timestamp, Tunnel, \
-                      If, IfThenElse, Switch, Check, Pass, Terminated, \
-                      setGlobalPrintFullStrings, setGlobalPrintPrivateEntries, \
+from construct import Struct, Const, Tell, Hex, Computed, RestreamData, Tunnel, GreedyBytes, GreedyRange, If, Switch, Check, \
+                      Bytes, PaddedString, Padding, \
+                      Int8ub, Int16ul, Int32ul, Int32sl, Int64ul, BytesInteger, \
                       this, len_
 
 def stringify_algo(algo: int) -> Optional[str]:
@@ -202,8 +199,16 @@ NodeInfo = Struct(
 		]) if ctx.format != FORMAT_PLAIN else stringify_format(ctx.format)
 	),
 
+	'is_encrypted' / Computed(
+		this.format != FORMAT_PLAIN
+	),
+
 	'is_compressed' / Computed(
 		this.format != FORMAT_PLAIN
+	),
+
+	'is_fragmented' / Computed(
+		this.format != FORMAT_PLAIN and this.kind == KIND_FRAG
 	),
 
 	'use_volume' / Computed(
@@ -258,16 +263,39 @@ PackedFileZStdTiny = Struct(
 	Check(len_(this.uncompressed_data) == this.uncompressed_size),
 )
 
+PackedFileZStdChunk = Struct(
+	'_start_offset' / Hex(Tell),
+
+	If(this._index > 0,
+		Padding(CHUNK_ALIGNMENT - this._start_offset % CHUNK_ALIGNMENT)
+	),
+
+	'magic' / RawHex(Const(PACKED_FILE_ZSTD_CHUNK_MAGIC, Int32ul)), # 0x00
+	'uncompressed_size' / Hex(Int32ul),                             # 0x04
+	'compressed_size' / Hex(Int32ul),                               # 0x08
+	'checksum' / Hex(Int32ul),                                      # 0x0C
+	'compressed_data' / Bytes(this.compressed_size),                # 0x10
+	'end_offset' / Hex(Tell),
+
+	'uncompressed_data' / RestreamData(
+		this.compressed_data,
+		CompressedZStd(Bytes(this.uncompressed_size))
+	),
+
+	Check(len_(this.compressed_data) == this.compressed_size),
+	Check(len_(this.uncompressed_data) == this.uncompressed_size),
+)
+
 PackedFileZStdRegular = Struct(
 	'uncompressed_size' / Hex(BytesInteger(0x6, swapped = True)), # 0x04
 	'compressed_size' / Hex(BytesInteger(0x6, swapped = True)),   # 0x0A
-	'_padding' / RawHex(Padding(0xC)),                            # 0x10
+	Padding(0xC),                                                 # 0x10
 	'unk_0x1C' / Hex(Int8ub),                                     # 0x1C
 	'unk_0x1D' / Hex(Int8ub),                                     # 0x1D
 	'unk_0x1E' / Hex(Int8ub),                                     # 0x1E
 	'unk_0x1F' / Hex(Int8ub),                                     # 0x1F
 
-	'sub' / IfThenElse(lambda ctx: (ctx.unk_0x1F & 0x1) == 0, Struct(
+	'entire' / If(lambda ctx: not ctx._params.is_fragmented, Struct(
 		'compressed_data' / Bytes(this._.compressed_size),        # 0x20
 
 		'uncompressed_data' / RestreamData(
@@ -277,22 +305,11 @@ PackedFileZStdRegular = Struct(
 
 		Check(len_(this.compressed_data) == this._.compressed_size),
 		Check(len_(this.uncompressed_data) == this._.uncompressed_size),
-	), LazyBound(lambda: PackedFile)),
-)
+	)),
 
-PackedFileZStdSub = Struct(
-	'uncompressed_size' / Hex(Int32ul),              # 0x04
-	'compressed_size' / Hex(Int32ul),                # 0x08
-	'checksum' / Hex(Int32ul),                       # 0x0C
-	'compressed_data' / Bytes(this.compressed_size), # 0x10
-
-	'uncompressed_data' / RestreamData(
-		this.compressed_data,
-		CompressedZStd(Bytes(this.uncompressed_size))
+	'chunks' / If(lambda ctx: ctx._params.is_fragmented,
+		GreedyRange(PackedFileZStdChunk)                         # 0x20
 	),
-
-	Check(len_(this.compressed_data) == this.compressed_size),
-	Check(len_(this.uncompressed_data) == this.uncompressed_size),
 )
 
 PackedFileZlib = Struct(
@@ -319,7 +336,6 @@ PackedFile = Struct(
 	'inner' / Switch(this.magic, {
 		PACKED_FILE_ZSTD_TINY_MAGIC: PackedFileZStdTiny,
 		PACKED_FILE_ZSTD_REGULAR_MAGIC: PackedFileZStdRegular,
-		PACKED_FILE_ZSTD_SUB_MAGIC: PackedFileZStdSub,
 		PACKED_FILE_ZLIB_MAGIC: PackedFileZlib,
 	}),
 )
