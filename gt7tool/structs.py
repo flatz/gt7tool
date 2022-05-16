@@ -251,16 +251,18 @@ PackedFileZStdTiny = Struct(
 	# Uncompressed size is stored as negative number.
 	'uncompressed_size' / Computed(-this._uncompressed_size),
 
-	'compressed_data' / GreedyBytes, # 0x08
+	'entire' / Struct(
+		'compressed_data' / GreedyBytes, # 0x08
 
-	'compressed_size' / Computed(lambda ctx: len(ctx.compressed_data)),
+		'uncompressed_data' / RestreamData(
+			this.compressed_data,
+			CompressedZStd(Bytes(this._.uncompressed_size))
+		),
 
-	'uncompressed_data' / RestreamData(
-		this.compressed_data,
-		CompressedZStd(Bytes(this.uncompressed_size))
+		Check(len_(this.uncompressed_data) == this._.uncompressed_size),
 	),
 
-	Check(len_(this.uncompressed_data) == this.uncompressed_size),
+	'compressed_size' / Computed(lambda ctx: len(ctx.entire.compressed_data)),
 )
 
 PackedFileZStdChunk = Struct(
@@ -318,16 +320,18 @@ PackedFileZlib = Struct(
 	# Compressed size is stored as negative number.
 	'compressed_size' / Computed(-this._compressed_size),
 
-	'compressed_data' / Bytes(this.compressed_size), # 0x08
+	'entire' / Struct(
+		'compressed_data' / Bytes(this._.compressed_size), # 0x08
 
-	'uncompressed_data' / RestreamData(
-		this.compressed_data,
-		CompressedZlib(GreedyBytes)
+		'uncompressed_data' / RestreamData(
+			this.compressed_data,
+			CompressedZlib(GreedyBytes)
+		),
+
+		Check(len_(this.compressed_data) == this._.compressed_size),
 	),
 
-	'uncompressed_size' / Computed(lambda ctx: len(ctx.uncompressed_data)),
-
-	Check(len_(this.compressed_data) == this.compressed_size),
+	'uncompressed_size' / Computed(lambda ctx: len(ctx.entire.uncompressed_data)),
 )
 
 PackedFile = Struct(
